@@ -1,6 +1,3 @@
-# Prerequisites
-*.d
-
 # Compiled Object files
 *.slo
 *.lo
@@ -18,15 +15,32 @@
 
 # Fortran module files
 *.mod
-*.smod
 
 # Compiled Static libraries
 *.lai
 *.la
 *.a
-*.lib
 
 # Executables
 *.exe
 *.out
 *.app
+
+# clion
+.idea/
+cmake-build-*/
+
+# exporters
+GettingStarted.html
+
+# mbed build system
+mbed-os/
+mbed_settings.py
+mbed_config.h
+*.pyc
+BUILD/
+cmake_build/
+
+BUILD
+.mbed
+mbed-os
