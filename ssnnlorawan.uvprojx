@@ -458,6 +458,16 @@
               <FileType>5</FileType>
               <FilePath>.\TCS3472_I2C.h</FilePath>
             </File>
+            <File>
+              <FileName>RGBLed.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>.\RGBLed.cpp</FilePath>
+            </File>
+            <File>
+              <FileName>RGBLed.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\RGBLed.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

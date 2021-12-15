@@ -31,6 +31,7 @@
 #include "TCS3472_I2C.h"
 #include "Si7021.h"
 #include "MBed_Adafruit_GPS.h"
+#include "RGBLed.h"
 
 using namespace events;
 
@@ -108,6 +109,7 @@ TCS3472_I2C rgb_sensor (PB_9, PB_8);
 DigitalOut led_rgbsensor(PB_7);
 int rgb_readings[4];
 Si7021 tempHumSensor(PB_9, PB_8);
+RGBLed rgbled(PH_0, PH_1, PB_13);
 BufferedSerial *gps_Serial = new BufferedSerial(PA_9, PA_10,9600);
 Adafruit_GPS myGPS(gps_Serial); 
 
@@ -118,12 +120,12 @@ Thread threadGPS(osPriorityNormal, 2048);
 int wait_time = 2000000;
 
 //Sensors values
-unsigned short light_value;
+signed short light_value;
 float x_value, y_value, z_value, moisture_value;
-int dominant_value, clear, red, green, blue;
+int clear, red, green, blue;
 float temp_value, hum_value;
 float latitude, longitude;
-uint16_t temp, hum, moisture;
+int16_t temp, hum, moisture, light, colour; //2byte
 
 /**
  * Entry point for application
@@ -133,13 +135,14 @@ void analogValues(void){
 	while (1){
 		//LIGHT (%)
 		light_value = (input_light.read_u16() * 100)/4000; 
-		if(light_value>=100){light_value = 99;} 
-		
+		if(light_value>=100){light_value = 100;} 
+		light = (int16_t)light_value;
 		//SOIL MOISTURE
 		moisture_value = soil * 100;
-		if(moisture_value>=100){moisture_value = 99;}
+		if(moisture_value>=100){moisture_value = 100;}
+		moisture = (int16_t) moisture_value;
 		wait_us(wait_time);
-		moisture = (uint16_t) moisture_value;
+		
 	}
 }
 void gpsRead(void){
@@ -164,14 +167,13 @@ void i2cValues(void){
 		tempHumSensor.get_data();
 		temp_value = tempHumSensor.get_temperature();
 		temp_value = temp_value/1000;
-		int tempaux = temp_value * 10;
-		temp = (uint16_t)tempaux;
+		temp = (int)temp_value;
 		
 		//HUMIDITY (%)
 		hum_value = tempHumSensor.get_humidity();
 		hum_value = hum_value/1000;
-		if(hum_value>=100){hum_value = 99;}
-		hum = (uint16_t)hum_value;
+		if(hum_value>=100){hum_value = 100;}
+		hum = (int)hum_value;
 		
 		//RGB SENSOR
 		rgb_sensor.setIntegrationTime( 100 ); 
@@ -193,16 +195,16 @@ void gpsInit(){
 	printf("Connection established at 9600 baud...\r\n");
 	wait_us(1000000);
 }
-void printValues(){
-	printf("TEMPERATURE: %1.1f C\n\r", temp_value);
-  printf("HUMIDITY: %1.1f %%\n\r", hum_value);
-	printf("LIGHT: %u %%\n\r", light_value);
-	printf("SOIL MOISTURE: %1.1f %%\n\r", moisture_value);
-	printf("ACCELEROMETER: x = %f, y = %f, z = %f\n\r", x_value, y_value, z_value);
-	printf("COLOR SENSOR: clear = %i, red = %i, green = %i, blue = %i\n\r", clear, red, green, blue );
-	printf("GPS VALUES: \n");
-	printf("-- Quality: %i\r\n", (int) myGPS.fixquality);
-	printf("-- Location: %5.2f %c, %5.2f %c\r\n", myGPS.latitude/100, myGPS.lat, myGPS.longitude/100, myGPS.lon);
+void dominantColour(){
+	if((red>green) && (red>blue)){
+		colour = 0;
+	}
+	else if( (green>red) && (green>blue)){ 
+		colour = 1;
+	}
+	else{ 
+		colour = 2;
+	}
 }
  
 int main(void)
@@ -219,8 +221,6 @@ int main(void)
 		threadGPS.start(gpsRead);
 		threadAnalog.start(analogValues);
 		threadI2C.start(i2cValues);
-		//printValues();
-   
 
     // Initialize LoRaWAN stack
     if (lorawan.initialize(&ev_queue) != LORAWAN_STATUS_OK) {
@@ -286,14 +286,15 @@ static void send_message()
     int32_t sensor_value;
 		float latitudeaux, longitudeaux;
 		int latit, longit;
+		dominantColour();
+	
 		if(myGPS.fixquality == 0){
-			latitudeaux = 40.23;
-			longitudeaux = -3.37;
-			latit = latitudeaux*100;
-			longit = longitudeaux*100;
+			latitude = 40.23;
+			longitude = -3.37;
+			latit = latitude*100;
+			longit = longitude*100;
 		}else{
-			
-			//Comprobar N, S(-), E, W(-) para signos
+			//N, S(-), E, W(-)
 			if(myGPS.lat == 'S'){
 				latitude = myGPS.latitude * 100;
 				latit = - (int)latitude*100;
@@ -326,23 +327,33 @@ static void send_message()
                          sensor_value);
 		*/
 		
-		packet_len = sprintf((char *) tx_buffer, "%05i%05i%03u%02u%02u%02u",latit, longit, temp, hum, light_value, moisture);
+		//packet_len = sprintf((char *) tx_buffer, "%05i%05i%03u%02u%02u%02u%u",latit, longit, temp, hum, light_value, moisture, colour);
 		
-		/*for(int i=0; i<18; i++){
-			if(i<9){
-				printf("%f", tx_buffer[i]);
-			}else{
-				printf("%f", tx_buffer[i]);
-			}
-		}*/
-		printf("%05i%05i%03u%02u%02u%02u\n",latit, longit, temp, hum, light_value, moisture);
-		printf("quality: %i, lat: %05i, long: %05i\n", myGPS.fixquality, latit, longit);
-		printf("temp: %03u, hum: %02u, light_value: %02u, moisture: %02u", temp, hum, light_value, moisture);
+		memcpy(&tx_buffer[0],&latitude, sizeof(float));
+		memcpy(&tx_buffer[4],&longitude, sizeof(float));
+		memcpy(&tx_buffer[8],&temp, sizeof(int));
+		memcpy(&tx_buffer[10],&hum, sizeof(int));
+		memcpy(&tx_buffer[12],&light, sizeof(int16_t));
+		memcpy(&tx_buffer[14],&moisture, sizeof(int16_t));
+		memcpy(&tx_buffer[16],&x_value, sizeof(float));
+		memcpy(&tx_buffer[20],&y_value, sizeof(float));
+		memcpy(&tx_buffer[24],&z_value, sizeof(float));
+		packet_len = 28;
+		
+		for (int i=0; i<28; i++){
+			printf("%02x",tx_buffer[i]);
+		}
+		
+		//printf("%05i%05i%03u%02u%02u%02u\n",latit, longit, temp, hum, light_value, moisture);
+		printf("\n");
+		printf("quality: %i, lat: %f, long: %f\n", myGPS.fixquality, latitude, longitude);
+		printf("temp: %u, hum: %u, light_value: %u, moisture: %u\n", temp, hum, light, moisture);
+		printf("xaxis: %f, yaxis: %f, zaxis: %f", x_value, y_value, z_value);
 		
     retcode = lorawan.send(MBED_CONF_LORA_APP_PORT, tx_buffer, packet_len,
                            MSG_UNCONFIRMED_FLAG);
 		//retcode = lorawan.send(MBED_CONF_LORA_APP_PORT, tx_buffer, packet_len,
-    //                       MSG_CONFIRMED_FLAG);
+      //                     MSG_CONFIRMED_FLAG);
 
     if (retcode < 0) {
         retcode == LORAWAN_STATUS_WOULD_BLOCK ? printf("send - WOULD BLOCK\r\n")
@@ -376,13 +387,25 @@ static void receive_message()
     }
 
     printf(" RX Data on port %u (%d bytes): ", port, retcode);
-    for (uint8_t i = 0; i < retcode; i++) {
+		for (uint8_t i = 0; i < retcode; i++) {
         printf("%02x ", rx_buffer[i]);
-    }
+		}
+		if(strcmp((char *)rx_buffer,"GREEN")==0){
+			rgbled.setColor(RGBLed::GREEN);
+			printf("LED PRINTED AS GREEN\n");
+		}else if(strcmp((char *)rx_buffer,"RED")==0){
+			rgbled.setColor(RGBLed::RED);
+			printf("LED PRINTED AS RED\n");
+		}else if(strcmp((char *)rx_buffer,"OFF")==0){
+			rgbled.setColor(RGBLed::BLACK);
+			printf("LED OFF\n");
+		}
     printf("\r\n");
     
     memset(rx_buffer, 0, sizeof(rx_buffer));
 }
+
+
 
 /**
  * Event handler
