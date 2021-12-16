@@ -125,7 +125,7 @@ float x_value, y_value, z_value, moisture_value;
 int clear, red, green, blue;
 float temp_value, hum_value;
 float latitude, longitude;
-int16_t temp, hum, moisture, light, colour; //2byte
+int temp, hum, moisture, light, colour; //2byte
 
 /**
  * Entry point for application
@@ -136,11 +136,11 @@ void analogValues(void){
 		//LIGHT (%)
 		light_value = (input_light.read_u16() * 100)/4000; 
 		if(light_value>=100){light_value = 100;} 
-		light = (int16_t)light_value;
+		light = (int)light_value;
 		//SOIL MOISTURE
 		moisture_value = soil * 100;
 		if(moisture_value>=100){moisture_value = 100;}
-		moisture = (int16_t) moisture_value;
+		moisture = (int) moisture_value;
 		wait_us(wait_time);
 		
 	}
@@ -296,18 +296,14 @@ static void send_message()
 		}else{
 			//N, S(-), E, W(-)
 			if(myGPS.lat == 'S'){
-				latitude = myGPS.latitude * 100;
-				latit = - (int)latitude*100;
+				latitude = - myGPS.latitude/100;
 			}else if(myGPS.lat == 'N'){
-				latitude = myGPS.latitude * 100;
-				latit = (int)latitude*100;
+				latitude = myGPS.latitude/100;
 			}
 			if(myGPS.lon == 'W'){
-				longitude = myGPS.longitude * 100;
-				longit = - (int)longitude*100;
+				longitude = - myGPS.longitude/100;
 			}else if(myGPS.lon == 'E'){
-				longitude = myGPS.longitude * 100;
-				longit = (int)longitude*100;
+				longitude = myGPS.longitude/100;
 			}
 		}
 	
@@ -333,21 +329,22 @@ static void send_message()
 		memcpy(&tx_buffer[4],&longitude, sizeof(float));
 		memcpy(&tx_buffer[8],&temp, sizeof(int));
 		memcpy(&tx_buffer[10],&hum, sizeof(int));
-		memcpy(&tx_buffer[12],&light, sizeof(int16_t));
-		memcpy(&tx_buffer[14],&moisture, sizeof(int16_t));
+		memcpy(&tx_buffer[12],&light, sizeof(int));
+		memcpy(&tx_buffer[14],&moisture, sizeof(int));
 		memcpy(&tx_buffer[16],&x_value, sizeof(float));
 		memcpy(&tx_buffer[20],&y_value, sizeof(float));
 		memcpy(&tx_buffer[24],&z_value, sizeof(float));
-		packet_len = 28;
+		memcpy(&tx_buffer[28],&colour, sizeof(int));
+		packet_len = 30;
 		
-		for (int i=0; i<28; i++){
+		for (int i=0; i<30; i++){
 			printf("%02x",tx_buffer[i]);
 		}
 		
 		//printf("%05i%05i%03u%02u%02u%02u\n",latit, longit, temp, hum, light_value, moisture);
 		printf("\n");
 		printf("quality: %i, lat: %f, long: %f\n", myGPS.fixquality, latitude, longitude);
-		printf("temp: %u, hum: %u, light_value: %u, moisture: %u\n", temp, hum, light, moisture);
+		printf("temp: %i, hum: %i, light: %i, moisture: %i, colour: %i\n", temp, hum, light, moisture, colour);
 		printf("xaxis: %f, yaxis: %f, zaxis: %f", x_value, y_value, z_value);
 		
     retcode = lorawan.send(MBED_CONF_LORA_APP_PORT, tx_buffer, packet_len,
