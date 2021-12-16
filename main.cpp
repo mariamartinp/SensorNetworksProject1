@@ -294,17 +294,8 @@ static void send_message()
 			latit = latitude*100;
 			longit = longitude*100;
 		}else{
-			//N, S(-), E, W(-)
-			if(myGPS.lat == 'S'){
-				latitude = - myGPS.latitude/100;
-			}else if(myGPS.lat == 'N'){
-				latitude = myGPS.latitude/100;
-			}
-			if(myGPS.lon == 'W'){
-				longitude = - myGPS.longitude/100;
-			}else if(myGPS.lon == 'E'){
-				longitude = myGPS.longitude/100;
-			}
+			latitude = myGPS.latitude;
+			longitude = myGPS.longitude;
 		}
 	
 		
