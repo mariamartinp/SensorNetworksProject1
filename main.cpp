@@ -284,22 +284,24 @@ static void send_message()
     uint16_t packet_len;
     int16_t retcode;
     int32_t sensor_value;
-		float latitudeaux, longitudeaux;
-		int latit, longit;
 		dominantColour();
 	
 		if(myGPS.fixquality == 0){
 			latitude = 40.23;
 			longitude = -3.37;
-			latit = latitude*100;
-			longit = longitude*100;
 		}else{
-			latitude = myGPS.latitude;
-			longitude = myGPS.longitude;
+			if(myGPS.lat == 'S'){
+				latitude = - myGPS.latitude/100;
+			}else if(myGPS.lat == 'N'){
+				latitude = myGPS.latitude/100;
+			}
+			if(myGPS.lon == 'W'){
+				longitude = - myGPS.longitude/100;
+			}else if(myGPS.lon == 'E'){
+				longitude = myGPS.longitude/100;
+			}
 		}
 	
-		
-
     /*if (ds1820.begin()) {
         ds1820.startConversion();
         sensor_value = ds1820.read();
@@ -313,9 +315,7 @@ static void send_message()
     packet_len = sprintf((char *) tx_buffer, "%d",
                          sensor_value);
 		*/
-		
-		//packet_len = sprintf((char *) tx_buffer, "%05i%05i%03u%02u%02u%02u%u",latit, longit, temp, hum, light_value, moisture, colour);
-		
+				
 		memcpy(&tx_buffer[0],&latitude, sizeof(float));
 		memcpy(&tx_buffer[4],&longitude, sizeof(float));
 		memcpy(&tx_buffer[8],&temp, sizeof(int));
@@ -328,11 +328,12 @@ static void send_message()
 		memcpy(&tx_buffer[28],&colour, sizeof(int));
 		packet_len = 30;
 		
+		//To print the payload
 		for (int i=0; i<30; i++){
 			printf("%02x",tx_buffer[i]);
 		}
 		
-		//printf("%05i%05i%03u%02u%02u%02u\n",latit, longit, temp, hum, light_value, moisture);
+		//To check the measured values and see them in the screen
 		printf("\n");
 		printf("quality: %i, lat: %f, long: %f\n", myGPS.fixquality, latitude, longitude);
 		printf("temp: %i, hum: %i, light: %i, moisture: %i, colour: %i\n", temp, hum, light, moisture, colour);
@@ -378,6 +379,7 @@ static void receive_message()
 		for (uint8_t i = 0; i < retcode; i++) {
         printf("%02x ", rx_buffer[i]);
 		}
+		//To check the colour send from resiot to the platform
 		if(strcmp((char *)rx_buffer,"GREEN")==0){
 			rgbled.setColor(RGBLed::GREEN);
 			printf("LED PRINTED AS GREEN\n");
